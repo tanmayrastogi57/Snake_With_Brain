@@ -26,9 +26,7 @@ This repository hosts an implementation of a Reinforcement Learning (RL) agent d
 - **Usage**: Run this file to define the Q-network model and its training process.
 
 ### How to Use
-1. Run `game.py` to play the Snake game manually.
-2. Execute `agent.py` to train the RL agent to play the game autonomously.
-3. Use `model.py` to define and train custom neural network models for the agent.
+1. Execute `agent.py` to train the RL agent to play the game autonomously.
 
 ### Dependencies
 - Python 3.x
