@@ -1,3 +1,4 @@
+import os
 import torch
 import random
 import numpy as np
@@ -20,6 +21,54 @@ class Agent:
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
         self.model = Linear_QNet(11, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
+        self.record = 0
+        self.total_score = 0
+        self.plot_scores = []
+        self.plot_mean_scores = []
+        self.checkpoint_path = os.path.join('model', 'checkpoint.pth')
+        self._load_checkpoint()
+
+    def _load_checkpoint(self):
+        if not os.path.exists(self.checkpoint_path):
+            return
+
+        checkpoint = torch.load(self.checkpoint_path, map_location=torch.device('cpu'))
+        model_state = checkpoint.get('model_state')
+        if model_state is not None:
+            self.model.load_state_dict(model_state)
+        optimizer_state = checkpoint.get('optimizer_state')
+        if optimizer_state is not None:
+            self.trainer.optimizer.load_state_dict(optimizer_state)
+
+        memory = checkpoint.get('memory')
+        if memory is not None:
+            self.memory = deque(memory, maxlen=MAX_MEMORY)
+
+        self.n_games = checkpoint.get('n_games', self.n_games)
+        self.record = checkpoint.get('record', self.record)
+        self.total_score = checkpoint.get('total_score', self.total_score)
+        self.plot_scores = checkpoint.get('plot_scores', self.plot_scores)
+        self.plot_mean_scores = checkpoint.get('plot_mean_scores', self.plot_mean_scores)
+
+        print(f"Loaded checkpoint with {self.n_games} games played and record {self.record}")
+
+    def save_checkpoint(self):
+        checkpoint = {
+            'model_state': self.model.state_dict(),
+            'optimizer_state': self.trainer.optimizer.state_dict(),
+            'memory': list(self.memory),
+            'n_games': self.n_games,
+            'record': self.record,
+            'total_score': self.total_score,
+            'plot_scores': self.plot_scores,
+            'plot_mean_scores': self.plot_mean_scores,
+        }
+
+        checkpoint_dir = os.path.dirname(self.checkpoint_path)
+        if checkpoint_dir and not os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+
+        torch.save(checkpoint, self.checkpoint_path)
 
     def get_state(self, game):
         head = game.snake[0]
@@ -101,12 +150,12 @@ class Agent:
 
 
 def train():
-    plot_scores = []
-    plot_mean_scores = []
-    total_score = 0
-    record = 0
     agent = Agent()
     game = SnakeGameAI()
+    plot_scores = agent.plot_scores
+    plot_mean_scores = agent.plot_mean_scores
+    total_score = agent.total_score
+    record = agent.record
     while True:
         # get old state
         state_old = agent.get_state(game)
@@ -133,6 +182,7 @@ def train():
             if score > record:
                 record = score
                 agent.model.save()
+            agent.record = record
 
             print('Game', agent.n_games, 'Score', score, 'Record:', record)
 
@@ -141,6 +191,11 @@ def train():
             mean_score = total_score / agent.n_games
             plot_mean_scores.append(mean_score)
             plot(plot_scores, plot_mean_scores)
+
+            agent.plot_scores = plot_scores
+            agent.plot_mean_scores = plot_mean_scores
+            agent.total_score = total_score
+            agent.save_checkpoint()
 
 
 if __name__ == '__main__':
