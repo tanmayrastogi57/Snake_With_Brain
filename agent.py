@@ -172,13 +172,35 @@ class Agent:
             return
 
         checkpoint = torch.load(self.checkpoint_path, map_location=torch.device('cpu'))
+
+        def _load_state(module: torch.nn.Module, state_dict: Dict[str, torch.Tensor], name: str) -> bool:
+            if not state_dict:
+                return False
+            current_state = module.state_dict()
+            compatible_state = {}
+            for key, value in state_dict.items():
+                if key in current_state and current_state[key].shape == value.shape:
+                    compatible_state[key] = value
+            if not compatible_state:
+                print(f"Skipping incompatible {name} checkpoint (architecture mismatch)")
+                return False
+            missing = set(current_state.keys()) - set(compatible_state.keys())
+            unexpected = set(state_dict.keys()) - set(compatible_state.keys())
+            if missing or unexpected:
+                print(
+                    f"Partially loaded {name} checkpoint: "
+                    f"skipped {len(missing)} missing and {len(unexpected)} unexpected parameters"
+                )
+            module.load_state_dict({**current_state, **compatible_state})
+            return True
+
         model_state = checkpoint.get('model_state')
-        if model_state is not None:
-            self.model.load_state_dict(model_state)
-            self.target_model.load_state_dict(model_state)
+        model_loaded = _load_state(self.model, model_state or {}, 'model')
+        if model_loaded:
+            self.target_model.load_state_dict(self.model.state_dict())
+
         target_state = checkpoint.get('target_model_state')
-        if target_state is not None:
-            self.target_model.load_state_dict(target_state)
+        _load_state(self.target_model, target_state or {}, 'target model')
         optimizer_state = checkpoint.get('optimizer_state')
         if optimizer_state is not None:
             self.trainer.optimizer.load_state_dict(optimizer_state)
