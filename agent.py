@@ -32,6 +32,14 @@ EPSILON_END = 0.05
 EPSILON_DECAY_GAMES = 500
 
 
+def resolve_device(device):
+    if device == 'auto':
+        return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if device == 'cuda' and not torch.cuda.is_available():
+        raise RuntimeError('CUDA was requested, but torch.cuda.is_available() is False')
+    return torch.device(device)
+
+
 @dataclass
 class Transition:
     state: np.ndarray
@@ -157,14 +165,15 @@ class PrioritizedReplayBuffer:
 
 class Agent:
 
-    def __init__(self, checkpoint_path=None, resume=True):
+    def __init__(self, checkpoint_path=None, resume=True, device='auto'):
+        self.device = resolve_device(device)
         self.n_games = 0
         self.epsilon = EPSILON_START  # exploration probability
         self.gamma = 0.9  # discount rate
         self.frame_count = 0
         self.memory = PrioritizedReplayBuffer(MAX_MEMORY, PRIORITIZED_ALPHA)
-        self.model = DuelingQNet(MODEL_INPUT_SIZE, MODEL_HIDDEN_SIZES, MODEL_OUTPUT_SIZE)
-        self.target_model = DuelingQNet(MODEL_INPUT_SIZE, MODEL_HIDDEN_SIZES, MODEL_OUTPUT_SIZE)
+        self.model = DuelingQNet(MODEL_INPUT_SIZE, MODEL_HIDDEN_SIZES, MODEL_OUTPUT_SIZE).to(self.device)
+        self.target_model = DuelingQNet(MODEL_INPUT_SIZE, MODEL_HIDDEN_SIZES, MODEL_OUTPUT_SIZE).to(self.device)
         self.trainer = QTrainer(
             self.model,
             self.target_model,
@@ -172,6 +181,7 @@ class Agent:
             gamma=self.gamma,
             target_update_tau=0.01,
             target_update_interval=1,
+            device=self.device,
         )
         self.record = 0
         self.total_score = 0
@@ -240,6 +250,15 @@ class Agent:
             return True
         return metadata == self._checkpoint_metadata()
 
+    def policy_state_cpu(self):
+        return {
+            key: value.detach().cpu().clone()
+            for key, value in self.model.state_dict().items()
+        }
+
+    def load_policy_state(self, state_dict):
+        self.model.load_state_dict(state_dict, strict=True)
+
     def _load_checkpoint(self):
         if not os.path.exists(self.checkpoint_path):
             return
@@ -249,7 +268,7 @@ class Agent:
         # the default to weights_only=True, which cannot deserialize that state.
         checkpoint = torch.load(
             self.checkpoint_path,
-            map_location=torch.device('cpu'),
+            map_location=self.device,
             weights_only=False,
         )
 
@@ -297,9 +316,15 @@ class Agent:
     def save_checkpoint(self):
         checkpoint = {
             'metadata': self._checkpoint_metadata(),
-            'model_state': self.model.state_dict(),
-            'target_model_state': self.target_model.state_dict(),
-            'optimizer_state': self.trainer.optimizer.state_dict(),
+            'model_state': {
+                key: value.detach().cpu()
+                for key, value in self.model.state_dict().items()
+            },
+            'target_model_state': {
+                key: value.detach().cpu()
+                for key, value in self.target_model.state_dict().items()
+            },
+            'optimizer_state': self._optimizer_state_cpu(),
             'memory': self.memory.to_serializable(),
             'n_games': self.n_games,
             'record': self.record,
@@ -314,6 +339,19 @@ class Agent:
             os.makedirs(checkpoint_dir)
 
         torch.save(checkpoint, self.checkpoint_path)
+
+    def _optimizer_state_cpu(self):
+        optimizer_state = self.trainer.optimizer.state_dict()
+        return {
+            **optimizer_state,
+            'state': {
+                parameter_id: {
+                    key: value.detach().cpu() if torch.is_tensor(value) else value
+                    for key, value in state.items()
+                }
+                for parameter_id, state in optimizer_state.get('state', {}).items()
+            },
+        }
 
     def get_state(self, game):
         head = game.snake[0]
@@ -389,8 +427,9 @@ class Agent:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
-            state0 = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-            prediction = self.model(state0)[0]
+            state0 = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
+            with torch.no_grad():
+                prediction = self.model(state0)[0]
             move = torch.argmax(prediction).item()
             final_move[move] = 1
 
@@ -414,6 +453,7 @@ def evaluate(agent, games=10, seed=None, render=False):
     random_state = random.getstate()
     numpy_state = np.random.get_state()
     torch_state = torch.get_rng_state()
+    cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
     previous_training = agent.model.training
     previous_epsilon = agent.epsilon
     scores = []
@@ -436,6 +476,8 @@ def evaluate(agent, games=10, seed=None, render=False):
         random.setstate(random_state)
         np.random.set_state(numpy_state)
         torch.set_rng_state(torch_state)
+        if cuda_states is not None:
+            torch.cuda.set_rng_state_all(cuda_states)
         agent.epsilon = previous_epsilon
         agent.model.train(previous_training)
 
@@ -456,11 +498,12 @@ def train(
     log_path='runs/training.jsonl',
     resume=True,
     checkpoint_path=None,
+    device='auto',
 ):
     if seed is not None:
         seed_everything(seed)
 
-    agent = Agent(checkpoint_path=checkpoint_path, resume=resume)
+    agent = Agent(checkpoint_path=checkpoint_path, resume=resume, device=device)
     game = SnakeGameAI(render=render, rng=random)
     logger = JsonlLogger(
         log_path,
@@ -545,6 +588,9 @@ def train(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train the Snake DQN agent.')
     parser.add_argument('--headless', action='store_true', help='disable Pygame rendering and frame-rate waits')
+    parser.add_argument('--workers', type=int, default=1, help='number of headless environments feeding one shared learner')
+    parser.add_argument('--device', choices=('auto', 'cpu', 'cuda'), default='auto', help='learner device')
+    parser.add_argument('--policy-sync-every', type=int, default=250, help='learner updates between worker policy broadcasts')
     parser.add_argument('--fresh', action='store_true', help='ignore the saved checkpoint and start counters and weights from scratch')
     parser.add_argument('--max-games', type=int, default=None, help='stop after this many completed games')
     parser.add_argument('--seed', type=int, default=None, help='seed Python, NumPy, PyTorch, and game randomness')
@@ -553,13 +599,30 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', default='model/checkpoint.pth', help='checkpoint path for this training worker')
     parser.add_argument('--log-file', default='runs/training.jsonl', help='JSONL experiment log path; use an empty value to disable')
     args = parser.parse_args()
-    train(
-        render=not args.headless,
-        max_games=args.max_games,
-        seed=args.seed,
-        eval_games=args.eval_games,
-        eval_every=args.eval_every,
-        log_path=args.log_file or None,
-        resume=not args.fresh,
-        checkpoint_path=args.checkpoint,
-    )
+    if args.workers > 1:
+        from parallel_training import train_parallel
+
+        train_parallel(
+            workers=args.workers,
+            max_games=args.max_games,
+            seed=args.seed,
+            eval_games=args.eval_games,
+            eval_every=args.eval_every,
+            log_path=args.log_file or None,
+            resume=not args.fresh,
+            checkpoint_path=args.checkpoint,
+            device=args.device,
+            policy_sync_every=args.policy_sync_every,
+        )
+    else:
+        train(
+            render=not args.headless,
+            max_games=args.max_games,
+            seed=args.seed,
+            eval_games=args.eval_games,
+            eval_every=args.eval_every,
+            log_path=args.log_file or None,
+            resume=not args.fresh,
+            checkpoint_path=args.checkpoint,
+            device=args.device,
+        )

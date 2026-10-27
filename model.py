@@ -83,6 +83,7 @@ class QTrainer:
         target_update_tau: float = 0.005,
         target_update_interval: int = 1,
         max_grad_norm: Optional[float] = 10.0,
+        device: Optional[torch.device] = None,
     ):
         self.lr = lr
         self.gamma = gamma
@@ -92,6 +93,7 @@ class QTrainer:
         self.target_update_tau = target_update_tau
         self.target_update_interval = target_update_interval
         self.max_grad_norm = max_grad_norm
+        self.device = device or torch.device('cpu')
         self._updates = 0
 
         # Ensure the target network starts as an exact copy of the policy network.
@@ -114,16 +116,16 @@ class QTrainer:
         done,
         weights=None,
     ):
-        state = torch.tensor(state, dtype=torch.float32)
-        next_state = torch.tensor(next_state, dtype=torch.float32)
-        action = torch.tensor(action, dtype=torch.long)
-        reward = torch.tensor(reward, dtype=torch.float32)
-        done = torch.tensor(done, dtype=torch.float32)
+        state = torch.tensor(state, dtype=torch.float32, device=self.device)
+        next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device)
+        action = torch.tensor(action, dtype=torch.long, device=self.device)
+        reward = torch.tensor(reward, dtype=torch.float32, device=self.device)
+        done = torch.tensor(done, dtype=torch.float32, device=self.device)
 
         if weights is None:
-            weights_tensor = torch.ones_like(reward)
+            weights_tensor = torch.ones_like(reward, device=self.device)
         else:
-            weights_tensor = torch.tensor(weights, dtype=torch.float32)
+            weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
 
         q_values = self.model(state)
         current_q = q_values.gather(1, action.unsqueeze(-1)).squeeze(-1)

@@ -6,7 +6,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import torch
 
-from agent import Agent, EPSILON_END, EPSILON_START, evaluate, seed_everything
+from agent import Agent, EPSILON_END, EPSILON_START, evaluate, resolve_device, seed_everything
 
 
 class CheckpointRegressionTests(unittest.TestCase):
@@ -86,6 +86,12 @@ class CheckpointRegressionTests(unittest.TestCase):
 
             self.assertEqual(first_resumed.n_games, 11)
             self.assertEqual(second_resumed.n_games, 22)
+
+    def test_cpu_device_selection_is_available(self):
+        self.assertEqual(resolve_device('cpu').type, 'cpu')
+        if not torch.cuda.is_available():
+            with self.assertRaises(RuntimeError):
+                resolve_device('cuda')
 
     def test_replay_training_waits_for_a_full_starting_batch(self):
         with tempfile.TemporaryDirectory() as directory:
