@@ -19,6 +19,8 @@ PRIORITIZED_ALPHA = 0.6
 PRIORITIZED_BETA_START = 0.4
 BETA_FRAMES = 100_000
 PRIORITY_EPS = 1e-5
+TRAIN_EVERY = 4
+REPLAY_START_SIZE = BATCH_SIZE
 MODEL_INPUT_SIZE = 11
 MODEL_HIDDEN_SIZES = (512, 512, 256)
 MODEL_OUTPUT_SIZE = 3
@@ -360,24 +362,15 @@ class Agent:
         action_idx = int(np.argmax(action))
         self.memory.add(state, action_idx, reward, next_state, done)
 
-    def train_long_memory(self):
-        if len(self.memory) == 0:
-            return
+    def train_from_replay(self):
+        if len(self.memory) < REPLAY_START_SIZE:
+            return False
 
         beta = min(1.0, PRIORITIZED_BETA_START + self.frame_count * (1.0 - PRIORITIZED_BETA_START) / BETA_FRAMES)
         states, actions, rewards, next_states, dones, indices, weights = self.memory.sample(BATCH_SIZE, beta)
         td_errors = self.trainer.train_step(states, actions, rewards, next_states, dones, weights=weights)
         self.memory.update_priorities(indices, td_errors)
-
-    def train_short_memory(self, state, action, reward, next_state, done):
-        action_idx = int(np.argmax(action))
-        self.trainer.train_step(
-            np.expand_dims(np.asarray(state, dtype=np.float32), axis=0),
-            np.array([action_idx], dtype=np.int64),
-            np.array([reward], dtype=np.float32),
-            np.expand_dims(np.asarray(next_state, dtype=np.float32), axis=0),
-            np.array([done], dtype=np.float32),
-        )
+        return True
 
     @staticmethod
     def epsilon_for_game(n_games):
@@ -420,17 +413,16 @@ def train(render=True, max_games=None):
         state_new = agent.get_state(game)
         agent.frame_count += 1
 
-        # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
-
         # remember
         agent.remember(state_old, final_move, reward, state_new, done)
+        if agent.frame_count % TRAIN_EVERY == 0:
+            agent.train_from_replay()
 
         if done:
-            # train long memory, plot result
+            # Replay updates happen on the fixed frame interval above rather
+            # than a second time at episode end.
             game.reset()
             agent.n_games += 1
-            agent.train_long_memory()
 
             if score > record:
                 record = score

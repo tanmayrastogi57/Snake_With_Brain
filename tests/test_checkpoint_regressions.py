@@ -59,6 +59,13 @@ class CheckpointRegressionTests(unittest.TestCase):
         self.assertGreater(Agent.epsilon_for_game(100000), 0.0)
         self.assertAlmostEqual(Agent.epsilon_for_game(100000), EPSILON_END, places=3)
 
+    def test_replay_training_waits_for_a_full_starting_batch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            agent = Agent(checkpoint_path=os.path.join(directory, "missing.pth"))
+
+            self.assertFalse(agent.train_from_replay())
+            self.assertFalse(hasattr(agent, "train_short_memory"))
+
 
 if __name__ == "__main__":
     unittest.main()
