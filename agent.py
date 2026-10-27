@@ -1,6 +1,7 @@
 import os
 import random
 import argparse
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -22,6 +23,9 @@ MODEL_INPUT_SIZE = 11
 MODEL_HIDDEN_SIZES = (512, 512, 256)
 MODEL_OUTPUT_SIZE = 3
 CHECKPOINT_VERSION = 2
+EPSILON_START = 1.0
+EPSILON_END = 0.05
+EPSILON_DECAY_GAMES = 500
 
 
 @dataclass
@@ -151,7 +155,7 @@ class Agent:
 
     def __init__(self, checkpoint_path=None):
         self.n_games = 0
-        self.epsilon = 0  # randomness
+        self.epsilon = EPSILON_START  # exploration probability
         self.gamma = 0.9  # discount rate
         self.frame_count = 0
         self.memory = PrioritizedReplayBuffer(MAX_MEMORY, PRIORITIZED_ALPHA)
@@ -375,11 +379,17 @@ class Agent:
             np.array([done], dtype=np.float32),
         )
 
-    def get_action(self, state):
-        # random moves: tradeoff exploration / exploitation
-        self.epsilon = 80 - self.n_games
+    @staticmethod
+    def epsilon_for_game(n_games):
+        """Return the exploration probability for a completed-game count."""
+        decay = math.exp(-max(0, n_games) / EPSILON_DECAY_GAMES)
+        return EPSILON_END + (EPSILON_START - EPSILON_END) * decay
+
+    def get_action(self, state, explore=True):
+        # Exponential decay preserves a small amount of exploration forever.
+        self.epsilon = self.epsilon_for_game(self.n_games)
         final_move = [0, 0, 0]
-        if random.randint(0, 200) < self.epsilon:
+        if explore and random.random() < self.epsilon:
             move = random.randint(0, 2)
             final_move[move] = 1
         else:

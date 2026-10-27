@@ -6,7 +6,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import torch
 
-from agent import Agent
+from agent import Agent, EPSILON_END, EPSILON_START
 
 
 class CheckpointRegressionTests(unittest.TestCase):
@@ -52,6 +52,12 @@ class CheckpointRegressionTests(unittest.TestCase):
 
             first_parameter = next(resumed.model.parameters())
             self.assertFalse(torch.equal(first_parameter, torch.ones_like(first_parameter)))
+
+    def test_exploration_has_a_nonzero_floor(self):
+        self.assertAlmostEqual(Agent.epsilon_for_game(0), EPSILON_START)
+        self.assertGreater(Agent.epsilon_for_game(1000), EPSILON_END)
+        self.assertGreater(Agent.epsilon_for_game(100000), 0.0)
+        self.assertAlmostEqual(Agent.epsilon_for_game(100000), EPSILON_END, places=3)
 
 
 if __name__ == "__main__":
