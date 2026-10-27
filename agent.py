@@ -1,5 +1,6 @@
 import os
 import random
+import argparse
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -336,9 +337,9 @@ class Agent:
         return final_move
 
 
-def train():
+def train(render=True, max_games=None):
     agent = Agent()
-    game = SnakeGameAI()
+    game = SnakeGameAI(render=render)
     plot_scores = agent.plot_scores
     plot_mean_scores = agent.plot_mean_scores
     total_score = agent.total_score
@@ -378,13 +379,22 @@ def train():
             total_score += score
             mean_score = total_score / agent.n_games
             plot_mean_scores.append(mean_score)
-            plot(plot_scores, plot_mean_scores)
+            if render:
+                plot(plot_scores, plot_mean_scores)
 
             agent.plot_scores = plot_scores
             agent.plot_mean_scores = plot_mean_scores
             agent.total_score = total_score
             agent.save_checkpoint()
 
+            if max_games is not None and agent.n_games >= max_games:
+                game.close()
+                return
+
 
 if __name__ == '__main__':
-    train()
+    parser = argparse.ArgumentParser(description='Train the Snake DQN agent.')
+    parser.add_argument('--headless', action='store_true', help='disable Pygame rendering and frame-rate waits')
+    parser.add_argument('--max-games', type=int, default=None, help='stop after this many completed games')
+    args = parser.parse_args()
+    train(render=not args.headless, max_games=args.max_games)

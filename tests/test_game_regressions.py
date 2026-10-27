@@ -39,6 +39,15 @@ class CollisionRegressionTests(unittest.TestCase):
         self.assertEqual((reward, done, score), (10, True, 1))
         self.assertIsNone(game.food)
 
+    def test_headless_game_skips_display_and_still_simulates(self):
+        game = SnakeGameAI(w=80, h=80, render=False)
+
+        reward, done, score = game.play_step([1, 0, 0])
+
+        self.assertIsNone(game.display)
+        self.assertIsNone(game.clock)
+        self.assertEqual((reward, done, score), (0, False, 0))
+
 
 if __name__ == "__main__":
     unittest.main()

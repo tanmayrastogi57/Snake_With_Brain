@@ -32,13 +32,17 @@ SPEED = 40
 
 class SnakeGameAI:
 
-    def __init__(self, w=640, h=480):
+    def __init__(self, w=640, h=480, render=True, speed=SPEED):
         self.w = w
         self.h = h
-        # init display
-        self.display = pygame.display.set_mode((self.w, self.h))
-        pygame.display.set_caption('Snake')
-        self.clock = pygame.time.Clock()
+        self.render = render
+        self.speed = speed
+        self.display = None
+        self.clock = None
+        if self.render:
+            self.display = pygame.display.set_mode((self.w, self.h))
+            pygame.display.set_caption('Snake')
+            self.clock = pygame.time.Clock()
         self.reset()
 
     def reset(self):
@@ -68,10 +72,11 @@ class SnakeGameAI:
     def play_step(self, action):
         self.frame_iteration += 1
         # 1. collect user input
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                quit()
+        if self.render:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
 
         # 2. move
         self._move(action)  # update the head
@@ -101,8 +106,9 @@ class SnakeGameAI:
             self.snake.pop()
 
         # 5. update ui and clock
-        self._update_ui()
-        self.clock.tick(SPEED)
+        if self.render:
+            self._update_ui()
+            self.clock.tick(self.speed)
         # 6. return game over and score
         return reward, game_over, self.score
 
@@ -120,6 +126,9 @@ class SnakeGameAI:
         return False
 
     def _update_ui(self):
+        if not self.render:
+            return
+
         self.display.fill(BLACK)
 
         for pt in self.snake:
@@ -132,6 +141,10 @@ class SnakeGameAI:
         text = font.render("Score: " + str(self.score), True, WHITE)
         self.display.blit(text, [0, 0])
         pygame.display.flip()
+
+    def close(self):
+        if self.render and self.display is not None:
+            pygame.display.quit()
 
     def _move(self, action):
         # [straight, right, left]
