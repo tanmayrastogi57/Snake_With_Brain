@@ -56,11 +56,14 @@ class SnakeGameAI:
         self.frame_iteration = 0
 
     def _place_food(self):
-        x = random.randint(0, (self.w - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
-        y = random.randint(0, (self.h - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
-        self.food = Point(x, y)
-        if self.food in self.snake:
-            self._place_food()
+        available = [
+            Point(x, y)
+            for x in range(0, self.w, BLOCK_SIZE)
+            for y in range(0, self.h, BLOCK_SIZE)
+            if Point(x, y) not in self.snake
+        ]
+        self.food = random.choice(available) if available else None
+        return bool(available)
 
     def play_step(self, action):
         self.frame_iteration += 1
@@ -90,7 +93,10 @@ class SnakeGameAI:
         if will_eat:
             self.score += 1
             reward = 10
-            self._place_food()
+            if not self._place_food():
+                game_over = True
+                self._update_ui()
+                return reward, game_over, self.score
         else:
             self.snake.pop()
 
@@ -120,7 +126,8 @@ class SnakeGameAI:
             pygame.draw.rect(self.display, BLUE1, pygame.Rect(pt.x, pt.y, BLOCK_SIZE, BLOCK_SIZE))
             pygame.draw.rect(self.display, BLUE2, pygame.Rect(pt.x + 4, pt.y + 4, 12, 12))
 
-        pygame.draw.rect(self.display, RED, pygame.Rect(self.food.x, self.food.y, BLOCK_SIZE, BLOCK_SIZE))
+        if self.food is not None:
+            pygame.draw.rect(self.display, RED, pygame.Rect(self.food.x, self.food.y, BLOCK_SIZE, BLOCK_SIZE))
 
         text = font.render("Score: " + str(self.score), True, WHITE)
         self.display.blit(text, [0, 0])
