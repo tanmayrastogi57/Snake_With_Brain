@@ -171,7 +171,14 @@ class Agent:
         if not os.path.exists(self.checkpoint_path):
             return
 
-        checkpoint = torch.load(self.checkpoint_path, map_location=torch.device('cpu'))
+        # The checkpoint is a trusted project artifact and contains optimizer/
+        # replay-buffer state in addition to model weights. PyTorch 2.6 changed
+        # the default to weights_only=True, which cannot deserialize that state.
+        checkpoint = torch.load(
+            self.checkpoint_path,
+            map_location=torch.device('cpu'),
+            weights_only=False,
+        )
 
         def _load_state(module: torch.nn.Module, state_dict: Dict[str, torch.Tensor], name: str) -> bool:
             if not state_dict:

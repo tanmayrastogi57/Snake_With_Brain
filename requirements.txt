@@ -1,5 +1,10 @@
-pygame~=2.5.2
-numpy~=1.26.3
-torch==2.3.0
-matplotlib~=3.9.0
-ipython~=8.24.0
+pygame~=2.5.2; python_version < "3.13"
+pygame~=2.6.1; python_version >= "3.13"
+numpy~=1.26.3; python_version < "3.13"
+numpy~=2.2.6; python_version >= "3.13"
+torch==2.3.0; python_version < "3.13"
+torch==2.6.0; python_version >= "3.13"
+matplotlib~=3.9.0; python_version < "3.13"
+matplotlib~=3.10.3; python_version >= "3.13"
+ipython~=8.24.0; python_version < "3.13"
+ipython~=9.6.0; python_version >= "3.13"
