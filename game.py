@@ -72,18 +72,22 @@ class SnakeGameAI:
 
         # 2. move
         self._move(action)  # update the head
-        self.snake.insert(0, self.head)
+        will_eat = self.head == self.food
 
         # 3. check if game over
         reward = 0
         game_over = False
-        if self.is_collision() or self.frame_iteration > 100 * len(self.snake):
+        # The tail moves away on ordinary moves, so entering its current cell
+        # is legal unless this move is going to eat food.
+        if self.is_collision(self.head, ignore_tail=not will_eat) or self.frame_iteration > 100 * len(self.snake):
             game_over = True
             reward = -10
             return reward, game_over, self.score
 
+        self.snake.insert(0, self.head)
+
         # 4. place new food or just move
-        if self.head == self.food:
+        if will_eat:
             self.score += 1
             reward = 10
             self._place_food()
@@ -96,14 +100,15 @@ class SnakeGameAI:
         # 6. return game over and score
         return reward, game_over, self.score
 
-    def is_collision(self, pt=None):
+    def is_collision(self, pt=None, ignore_tail=False):
         if pt is None:
             pt = self.head
         # hits boundary
         if pt.x > self.w - BLOCK_SIZE or pt.x < 0 or pt.y > self.h - BLOCK_SIZE or pt.y < 0:
             return True
         # hits itself
-        if pt in self.snake[1:]:
+        body = self.snake[1:-1] if ignore_tail else self.snake[1:]
+        if pt in body:
             return True
 
         return False
