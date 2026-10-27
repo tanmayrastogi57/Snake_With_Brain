@@ -12,6 +12,7 @@ import torch
 from game import SnakeGameAI, Direction, Point
 from helper import plot
 from model import DuelingQNet, QTrainer
+from experiment import JsonlLogger
 
 MAX_MEMORY = 100_000
 BATCH_SIZE = 512
@@ -445,12 +446,21 @@ def evaluate(agent, games=10, seed=None, render=False):
     }
 
 
-def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0):
+def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0, log_path='runs/training.jsonl'):
     if seed is not None:
         seed_everything(seed)
 
     agent = Agent()
     game = SnakeGameAI(render=render, rng=random)
+    logger = JsonlLogger(
+        log_path,
+        context={
+            'seed': seed,
+            'render': render,
+            'checkpoint_path': agent.checkpoint_path,
+        },
+    )
+    logger.log('run_started', max_games=max_games, eval_games=eval_games, eval_every=eval_every)
     plot_scores = agent.plot_scores
     plot_mean_scores = agent.plot_mean_scores
     total_score = agent.total_score
@@ -496,15 +506,27 @@ def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0):
             agent.plot_mean_scores = plot_mean_scores
             agent.total_score = total_score
             agent.save_checkpoint()
+            logger.log(
+                'episode',
+                game=agent.n_games,
+                score=score,
+                record=record,
+                mean_score=mean_score,
+                epsilon=agent.epsilon,
+                frame_count=agent.frame_count,
+                replay_size=len(agent.memory),
+            )
 
             if eval_games and (eval_every == 0 or agent.n_games % eval_every == 0):
                 evaluation = evaluate(agent, games=eval_games, seed=seed, render=False)
+                logger.log('evaluation', game=agent.n_games, **evaluation)
                 print(
                     f"Evaluation after game {agent.n_games}: "
                     f"mean={evaluation['mean_score']:.2f} max={evaluation['max_score']}"
                 )
 
             if max_games is not None and agent.n_games >= max_games:
+                logger.log('run_finished', reason='max_games', game=agent.n_games, frame_count=agent.frame_count)
                 game.close()
                 return
 
@@ -516,6 +538,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=None, help='seed Python, NumPy, PyTorch, and game randomness')
     parser.add_argument('--eval-games', type=int, default=0, help='run this many greedy evaluation games')
     parser.add_argument('--eval-every', type=int, default=0, help='evaluate every N completed training games')
+    parser.add_argument('--log-file', default='runs/training.jsonl', help='JSONL experiment log path; use an empty value to disable')
     args = parser.parse_args()
     train(
         render=not args.headless,
@@ -523,4 +546,5 @@ if __name__ == '__main__':
         seed=args.seed,
         eval_games=args.eval_games,
         eval_every=args.eval_every,
+        log_path=args.log_file or None,
     )
