@@ -59,6 +59,17 @@ class CheckpointRegressionTests(unittest.TestCase):
         self.assertGreater(Agent.epsilon_for_game(100000), 0.0)
         self.assertAlmostEqual(Agent.epsilon_for_game(100000), EPSILON_END, places=3)
 
+    def test_fresh_agent_does_not_resume_a_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint_path = os.path.join(directory, 'checkpoint.pth')
+            source = Agent(checkpoint_path=checkpoint_path)
+            source.n_games = 123
+            source.save_checkpoint()
+
+            fresh = Agent(checkpoint_path=checkpoint_path, resume=False)
+
+            self.assertEqual(fresh.n_games, 0)
+
     def test_replay_training_waits_for_a_full_starting_batch(self):
         with tempfile.TemporaryDirectory() as directory:
             agent = Agent(checkpoint_path=os.path.join(directory, "missing.pth"))

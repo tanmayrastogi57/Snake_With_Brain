@@ -31,11 +31,20 @@ For reproducible training without a window, frame-rate waits, or live plots:
 .\\.venv\\Scripts\\python.exe agent.py --headless --max-games 1000 --seed 42
 ```
 
+By default, training resumes `model/checkpoint.pth`. To discard the saved
+training progress and begin at game 0 with newly initialized weights, use
+`--fresh`:
+
+```powershell
+.\\.venv\\Scripts\\python.exe agent.py --fresh --headless --max-games 100 --seed 42
+```
+
 Useful options:
 
 | Option | Purpose |
 | --- | --- |
 | `--headless` | Disable PyGame rendering and frame-rate waits. |
+| `--fresh` | Ignore the saved checkpoint and start from game 0. |
 | `--max-games N` | Stop after `N` completed games. |
 | `--seed N` | Seed Python, NumPy, PyTorch, and game randomness. |
 | `--eval-games N` | Run `N` greedy evaluation games during training. |

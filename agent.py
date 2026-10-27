@@ -157,7 +157,7 @@ class PrioritizedReplayBuffer:
 
 class Agent:
 
-    def __init__(self, checkpoint_path=None):
+    def __init__(self, checkpoint_path=None, resume=True):
         self.n_games = 0
         self.epsilon = EPSILON_START  # exploration probability
         self.gamma = 0.9  # discount rate
@@ -178,7 +178,8 @@ class Agent:
         self.plot_scores = []
         self.plot_mean_scores = []
         self.checkpoint_path = checkpoint_path or os.path.join('model', 'checkpoint.pth')
-        self._load_checkpoint()
+        if resume:
+            self._load_checkpoint()
 
     def _checkpoint_metadata(self):
         return {
@@ -446,17 +447,18 @@ def evaluate(agent, games=10, seed=None, render=False):
     }
 
 
-def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0, log_path='runs/training.jsonl'):
+def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0, log_path='runs/training.jsonl', resume=True):
     if seed is not None:
         seed_everything(seed)
 
-    agent = Agent()
+    agent = Agent(resume=resume)
     game = SnakeGameAI(render=render, rng=random)
     logger = JsonlLogger(
         log_path,
         context={
             'seed': seed,
             'render': render,
+            'resume': resume,
             'checkpoint_path': agent.checkpoint_path,
         },
     )
@@ -534,6 +536,7 @@ def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0, lo
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train the Snake DQN agent.')
     parser.add_argument('--headless', action='store_true', help='disable Pygame rendering and frame-rate waits')
+    parser.add_argument('--fresh', action='store_true', help='ignore the saved checkpoint and start counters and weights from scratch')
     parser.add_argument('--max-games', type=int, default=None, help='stop after this many completed games')
     parser.add_argument('--seed', type=int, default=None, help='seed Python, NumPy, PyTorch, and game randomness')
     parser.add_argument('--eval-games', type=int, default=0, help='run this many greedy evaluation games')
@@ -547,4 +550,5 @@ if __name__ == '__main__':
         eval_games=args.eval_games,
         eval_every=args.eval_every,
         log_path=args.log_file or None,
+        resume=not args.fresh,
     )
