@@ -1,22 +1,27 @@
 [CmdletBinding()]
 param(
-    [ValidateRange(1, 32)]
+    [ValidateRange(2, 32)]
     [int]$Workers = 4,
 
     [ValidateRange(1, 1000000)]
     [int]$Games = 1000,
 
-    [int]$BaseSeed = 1000,
+    [int]$Seed = 1000,
+
+    [ValidateSet('auto', 'cpu', 'cuda')]
+    [string]$Device = 'auto',
 
     [switch]$Resume,
 
-    [string]$RunDirectory = 'runs\parallel'
+    [string]$RunDirectory = 'runs\shared'
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pythonPath = Join-Path $repoRoot '.venv\Scripts\python.exe'
 $runPath = Join-Path $repoRoot $RunDirectory
+$checkpointPath = Join-Path $runPath 'shared-checkpoint.pth'
+$logPath = Join-Path $runPath 'shared-training.jsonl'
 
 if (-not (Test-Path -LiteralPath $pythonPath)) {
     throw "Python virtual environment not found at $pythonPath"
@@ -24,32 +29,25 @@ if (-not (Test-Path -LiteralPath $pythonPath)) {
 
 New-Item -ItemType Directory -Force -Path $runPath | Out-Null
 
-for ($worker = 1; $worker -le $Workers; $worker++) {
-    $workerName = "worker-$worker"
-    $checkpointPath = Join-Path $runPath "$workerName.pth"
-    $logPath = Join-Path $runPath "$workerName.jsonl"
-    $seed = $BaseSeed + $worker - 1
-    $freshArgument = if ($Resume) { @() } else { @('--fresh') }
-    $arguments = @(
-        'agent.py',
-        '--headless',
-        '--max-games', $Games,
-        '--seed', $seed
-    ) + $freshArgument + @(
-        '--checkpoint', "`"$checkpointPath`"",
-        '--log-file', "`"$logPath`""
-    )
+$arguments = @(
+    'agent.py',
+    '--workers', $Workers,
+    '--headless',
+    '--max-games', $Games,
+    '--seed', $Seed,
+    '--device', $Device,
+    '--checkpoint', "`"$checkpointPath`"",
+    '--log-file', "`"$logPath`""
+)
 
-    $process = Start-Process `
-        -FilePath $pythonPath `
-        -ArgumentList $arguments `
-        -WorkingDirectory $repoRoot `
-        -WindowStyle Hidden `
-        -PassThru
-
-    Write-Output "$workerName started (PID $($process.Id), seed $seed)"
-    Write-Output "  checkpoint: $checkpointPath"
-    Write-Output "  log:        $logPath"
+if (-not $Resume) {
+    $arguments += '--fresh'
 }
 
-Write-Output "Started $Workers independent workers. Their checkpoints are not merged automatically."
+Write-Output "Starting one shared learner with $Workers environment workers"
+Write-Output "Device:     $Device"
+Write-Output "Checkpoint: $checkpointPath"
+Write-Output "Log:        $logPath"
+
+& $pythonPath @arguments
+exit $LASTEXITCODE

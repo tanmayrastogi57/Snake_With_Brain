@@ -45,7 +45,10 @@ Useful options:
 | --- | --- |
 | `--headless` | Disable PyGame rendering and frame-rate waits. |
 | `--fresh` | Ignore the saved checkpoint and start from game 0. |
-| `--checkpoint PATH` | Use a separate checkpoint for this training process. Required for parallel workers. |
+| `--workers N` | Run `N` headless environments feeding one shared learner. Default: `1`. |
+| `--device auto\|cpu\|cuda` | Select the learner device. `auto` uses CUDA when available. |
+| `--policy-sync-every N` | Broadcast the latest learner policy to workers every `N` learner updates. |
+| `--checkpoint PATH` | Shared checkpoint path written by the centralized learner. |
 | `--max-games N` | Stop after `N` completed games. |
 | `--seed N` | Seed Python, NumPy, PyTorch, and game randomness. |
 | `--eval-games N` | Run `N` greedy evaluation games during training. |
@@ -62,26 +65,31 @@ The existing `model/checkpoint.pth` is loaded automatically when present.
 Training saves the current model, target model, optimizer, replay buffer,
 progress counters, and checkpoint metadata after each completed game.
 
-Multiple independent workers can be run safely when each has a unique
-`--checkpoint` and `--log-file`. Their experience is not merged automatically;
-select the best checkpoint afterward or use them as separate experiments.
+Multiple workers can share one learner and one replay buffer. Workers send
+transitions to the learner, and the learner periodically broadcasts updated
+policy weights back to them. Only the learner writes the checkpoint.
 
-To start four independent headless workers with seeds `1000` through `1003`:
+To start four environments contributing to one shared policy:
 
 ```powershell
 .\\run_parallel_training.ps1 -Workers 4 -Games 1000
 ```
 
-Use `-Resume` to continue existing worker checkpoints instead of starting each
-worker fresh:
+Use CUDA when available:
+
+```powershell
+.\\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device cuda
+```
+
+Use `-Resume` to continue the shared checkpoint instead of starting fresh:
 
 ```powershell
 .\\run_parallel_training.ps1 -Workers 4 -Games 1000 -Resume
 ```
 
-This increases the number of independent experiments running concurrently. It
-does not merge their replay buffers or update one shared policy; choose the
-best worker checkpoint or use a future centralized learner for shared training.
+The worker count is configurable. The environment workers run on CPU while the
+single learner runs on the selected CPU/GPU device. This shares experience and
+updates one policy rather than producing separate models.
 
 ## Architecture and learning schedule
 
