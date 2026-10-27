@@ -1,34 +1,100 @@
-## Snake Game RL Agent
+# Snake With Brain
 
-This repository hosts an implementation of a Reinforcement Learning (RL) agent designed to master the classic Snake game. The project comprises three interconnected Python files:
+An advanced Deep Q-Learning Snake agent implemented with PyGame, NumPy, and
+PyTorch. The project includes a dueling Q-network, Double-DQN targets,
+prioritized replay, checkpoint resume, deterministic evaluation, and
+headless training.
 
-### 1. game.py
-- **Description**: This file defines the game environment using the Pygame library. It encapsulates the entire Snake game logic, including initializing the game state, managing user input, updating the snake's movement, detecting collisions, handling score computation, and rendering the game elements.
-- **Key Components**:
-  - `SnakeGameAI` Class: Manages the game state and provides methods for game initialization, playing a single step, collision detection, updating the UI, and resetting the game.
-  - Constants, Colors, Enums, and Named Tuples: Define game parameters, colors, directions, and point representations.
-  - Play Step Method: Controls the main game loop, including user input handling, snake movement, collision detection, score update, and rendering.
-- **Usage**: Run this file to start the Snake game environment.
+## Setup
 
-### 2. agent.py
-- **Description**: This file implements the RL agent responsible for learning to play the Snake game. It employs a Q-learning algorithm to make decisions based on observed game states, actions, and rewards. The agent interacts with the game environment, learns from experiences, and adjusts its behavior to maximize its score.
-- **Key Components**:
-  - `Agent` Class: Initializes agent parameters, including exploration rate, discount rate, memory buffer, Q-network model, and trainer. Provides methods for state observation, action selection, memory management, and training.
-  - Train Functions: Define the training process, including short-term and long-term memory training steps.
-  - Training Loop: Controls the interaction between the agent and the game environment, facilitating learning and decision-making.
-- **Usage**: Execute this file to train the RL agent to play the Snake game.
+Python 3.13 is the recommended Windows runtime for the current dependency wheels:
 
-### 3. model.py
-- **Description**: This file defines the neural network model used by the RL agent to approximate the Q-values of state-action pairs. It implements a simple feedforward neural network architecture and a trainer class for updating the network parameters during training.
-- **Key Components**:
-  - `Linear_QNet` Class: Defines a neural network with two linear layers. Implements the forward pass and a method to save the model's state.
-  - `QTrainer` Class: Manages the training process, including optimizer initialization, loss computation, and parameter updates.
-- **Usage**: Run this file to define the Q-network model and its training process.
+```powershell
+py -3.13 -m venv .venv
+.\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt
+```
 
-### How to Use
-1. Execute `agent.py` to train the RL agent to play the game autonomously.
+The dependency file selects wheels for Python 3.13 and retains the older
+compatible pins for Python versions below 3.13.
 
-### Dependencies
-- Python 3.x
-- Pygame
-- PyTorch
+## Run training
+
+Launch the interactive trainer:
+
+```powershell
+.\\.venv\\Scripts\\python.exe agent.py
+```
+
+For reproducible training without a window, frame-rate waits, or live plots:
+
+```powershell
+.\\.venv\\Scripts\\python.exe agent.py --headless --max-games 1000 --seed 42
+```
+
+Useful options:
+
+| Option | Purpose |
+| --- | --- |
+| `--headless` | Disable PyGame rendering and frame-rate waits. |
+| `--max-games N` | Stop after `N` completed games. |
+| `--seed N` | Seed Python, NumPy, PyTorch, and game randomness. |
+| `--eval-games N` | Run `N` greedy evaluation games during training. |
+| `--eval-every N` | Evaluate after every `N` completed games. `0` evaluates every episode when evaluation is enabled. |
+| `--log-file PATH` | Write structured JSONL records. Default: `runs/training.jsonl`. Pass an empty value to disable logging. |
+
+Example experiment command:
+
+```powershell
+.\\.venv\\Scripts\\python.exe agent.py --headless --max-games 1000 --seed 42 --eval-games 10 --eval-every 50 --log-file runs/seed-42.jsonl
+```
+
+The existing `model/checkpoint.pth` is loaded automatically when present.
+Training saves the current model, target model, optimizer, replay buffer,
+progress counters, and checkpoint metadata after each completed game.
+
+## Architecture and learning schedule
+
+- State: 11 binary features covering danger, direction, and food location.
+- Policy and target networks: dueling MLPs with hidden sizes `512 -> 512 -> 256` and 3 action outputs (straight, right, left).
+- Targets: Double-DQN action selection with a softly updated target network.
+- Replay: prioritized replay with alpha `0.6`, importance-sampling beta annealing, and a capacity of `100,000` transitions.
+- Optimization: Adam, learning rate `0.0005`, gradient clipping, and batches of `512`.
+- Schedule: one prioritized replay update every 4 environment frames after the initial replay batch is available. There is no additional single-transition update or episode-end duplicate update.
+- Exploration: exponential decay from `1.0` toward a persistent floor of `0.05`, so exploration does not stop after 80 games.
+
+The simulator permits moving into the departing tail cell, places food from a
+bounded list of free cells, and ends an episode cleanly when the board is full.
+
+## Checkpoints and evaluation
+
+New checkpoints include model architecture and optimizer metadata. Resume only
+loads a model when the complete model and target state dictionaries match; an
+incompatible optimizer is skipped instead of producing an inconsistent
+resume. Older checkpoints without metadata are still accepted when their
+complete tensor and optimizer structures match.
+
+Evaluation uses separate seeded environments and greedy actions. It restores
+the training RNG states, exploration value, and model training mode after the
+run, so evaluation does not perturb training.
+
+## Experiment logs
+
+Training writes one JSON object per line. Records include `run_started`,
+`episode`, `evaluation`, and `run_finished` events with timestamps, seed,
+episode score, running mean, record, epsilon, frame count, replay size, and
+evaluation scores. Generated `runs/` files are ignored by Git.
+
+## Tests
+
+Run the regression suite in headless mode:
+
+```powershell
+$env:SDL_VIDEODRIVER = 'dummy'
+.\\.venv\\Scripts\\python.exe -m unittest discover -s tests -v
+```
+
+The tests cover tail collision semantics, full-board food placement,
+headless simulation, checkpoint compatibility, exploration scheduling,
+replay scheduling, deterministic seeds, independent evaluation, and JSONL
+logging.
+
