@@ -18,6 +18,10 @@ PRIORITIZED_ALPHA = 0.6
 PRIORITIZED_BETA_START = 0.4
 BETA_FRAMES = 100_000
 PRIORITY_EPS = 1e-5
+MODEL_INPUT_SIZE = 11
+MODEL_HIDDEN_SIZES = (512, 512, 256)
+MODEL_OUTPUT_SIZE = 3
+CHECKPOINT_VERSION = 2
 
 
 @dataclass
@@ -145,14 +149,14 @@ class PrioritizedReplayBuffer:
 
 class Agent:
 
-    def __init__(self):
+    def __init__(self, checkpoint_path=None):
         self.n_games = 0
         self.epsilon = 0  # randomness
         self.gamma = 0.9  # discount rate
         self.frame_count = 0
         self.memory = PrioritizedReplayBuffer(MAX_MEMORY, PRIORITIZED_ALPHA)
-        self.model = DuelingQNet(11, [512, 512, 256], 3)
-        self.target_model = DuelingQNet(11, [512, 512, 256], 3)
+        self.model = DuelingQNet(MODEL_INPUT_SIZE, MODEL_HIDDEN_SIZES, MODEL_OUTPUT_SIZE)
+        self.target_model = DuelingQNet(MODEL_INPUT_SIZE, MODEL_HIDDEN_SIZES, MODEL_OUTPUT_SIZE)
         self.trainer = QTrainer(
             self.model,
             self.target_model,
@@ -165,8 +169,67 @@ class Agent:
         self.total_score = 0
         self.plot_scores = []
         self.plot_mean_scores = []
-        self.checkpoint_path = os.path.join('model', 'checkpoint.pth')
+        self.checkpoint_path = checkpoint_path or os.path.join('model', 'checkpoint.pth')
         self._load_checkpoint()
+
+    def _checkpoint_metadata(self):
+        return {
+            'version': CHECKPOINT_VERSION,
+            'model': {
+                'class': type(self.model).__name__,
+                'input_size': MODEL_INPUT_SIZE,
+                'hidden_sizes': list(MODEL_HIDDEN_SIZES),
+                'output_size': MODEL_OUTPUT_SIZE,
+            },
+            'optimizer': {
+                'class': type(self.trainer.optimizer).__name__,
+                'parameter_count': sum(parameter.numel() for parameter in self.model.parameters()),
+            },
+        }
+
+    @staticmethod
+    def _state_dict_matches(module, state_dict):
+        if not isinstance(state_dict, dict):
+            return False
+
+        current_state = module.state_dict()
+        if set(state_dict) != set(current_state):
+            return False
+
+        return all(
+            torch.is_tensor(value) and value.shape == current_state[key].shape
+            for key, value in state_dict.items()
+        )
+
+    def _optimizer_state_matches(self, optimizer_state):
+        if not isinstance(optimizer_state, dict):
+            return False
+
+        saved_groups = optimizer_state.get('param_groups')
+        current_groups = self.trainer.optimizer.param_groups
+        if not isinstance(saved_groups, list) or len(saved_groups) != len(current_groups):
+            return False
+
+        for saved_group, current_group in zip(saved_groups, current_groups):
+            saved_params = saved_group.get('params', [])
+            current_params = current_group.get('params', [])
+            if len(saved_params) != len(current_params):
+                return False
+
+            for saved_parameter_id, current_parameter in zip(saved_params, current_params):
+                saved_state = optimizer_state.get('state', {}).get(saved_parameter_id, {})
+                for value in saved_state.values():
+                    if torch.is_tensor(value) and value.ndim > 0 and value.shape != current_parameter.shape:
+                        return False
+
+        return True
+
+    def _metadata_matches(self, metadata):
+        if metadata is None:
+            # Checkpoints written before metadata was introduced are validated
+            # by their complete model and optimizer state below.
+            return True
+        return metadata == self._checkpoint_metadata()
 
     def _load_checkpoint(self):
         if not os.path.exists(self.checkpoint_path):
@@ -181,37 +244,27 @@ class Agent:
             weights_only=False,
         )
 
-        def _load_state(module: torch.nn.Module, state_dict: Dict[str, torch.Tensor], name: str) -> bool:
-            if not state_dict:
-                return False
-            current_state = module.state_dict()
-            compatible_state = {}
-            for key, value in state_dict.items():
-                if key in current_state and current_state[key].shape == value.shape:
-                    compatible_state[key] = value
-            if not compatible_state:
-                print(f"Skipping incompatible {name} checkpoint (architecture mismatch)")
-                return False
-            missing = set(current_state.keys()) - set(compatible_state.keys())
-            unexpected = set(state_dict.keys()) - set(compatible_state.keys())
-            if missing or unexpected:
-                print(
-                    f"Partially loaded {name} checkpoint: "
-                    f"skipped {len(missing)} missing and {len(unexpected)} unexpected parameters"
-                )
-            module.load_state_dict({**current_state, **compatible_state})
-            return True
-
         model_state = checkpoint.get('model_state')
-        model_loaded = _load_state(self.model, model_state or {}, 'model')
-        if model_loaded:
-            self.target_model.load_state_dict(self.model.state_dict())
-
         target_state = checkpoint.get('target_model_state')
-        _load_state(self.target_model, target_state or {}, 'target model')
+        metadata_matches = self._metadata_matches(checkpoint.get('metadata'))
+        model_matches = metadata_matches and self._state_dict_matches(self.model, model_state)
+        target_matches = metadata_matches and self._state_dict_matches(self.target_model, target_state)
+
+        if model_matches:
+            self.model.load_state_dict(model_state, strict=True)
+            if target_matches:
+                self.target_model.load_state_dict(target_state, strict=True)
+            else:
+                print('Target model checkpoint is incompatible; copying the loaded policy model')
+                self.target_model.load_state_dict(self.model.state_dict(), strict=True)
+        else:
+            print('Skipping model checkpoint because metadata or architecture is incompatible')
+
         optimizer_state = checkpoint.get('optimizer_state')
-        if optimizer_state is not None:
+        if model_matches and self._optimizer_state_matches(optimizer_state):
             self.trainer.optimizer.load_state_dict(optimizer_state)
+        elif optimizer_state is not None:
+            print('Skipping optimizer checkpoint because it is incompatible with the loaded model')
 
         memory = checkpoint.get('memory')
         if memory:
@@ -234,6 +287,7 @@ class Agent:
 
     def save_checkpoint(self):
         checkpoint = {
+            'metadata': self._checkpoint_metadata(),
             'model_state': self.model.state_dict(),
             'target_model_state': self.target_model.state_dict(),
             'optimizer_state': self.trainer.optimizer.state_dict(),
