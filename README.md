@@ -66,6 +66,23 @@ Multiple independent workers can be run safely when each has a unique
 `--checkpoint` and `--log-file`. Their experience is not merged automatically;
 select the best checkpoint afterward or use them as separate experiments.
 
+To start four independent headless workers with seeds `1000` through `1003`:
+
+```powershell
+.\\run_parallel_training.ps1 -Workers 4 -Games 1000
+```
+
+Use `-Resume` to continue existing worker checkpoints instead of starting each
+worker fresh:
+
+```powershell
+.\\run_parallel_training.ps1 -Workers 4 -Games 1000 -Resume
+```
+
+This increases the number of independent experiments running concurrently. It
+does not merge their replay buffers or update one shared policy; choose the
+best worker checkpoint or use a future centralized learner for shared training.
+
 ## Architecture and learning schedule
 
 - State: 11 binary features covering danger, direction, and food location.
