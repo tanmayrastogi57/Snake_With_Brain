@@ -447,11 +447,20 @@ def evaluate(agent, games=10, seed=None, render=False):
     }
 
 
-def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0, log_path='runs/training.jsonl', resume=True):
+def train(
+    render=True,
+    max_games=None,
+    seed=None,
+    eval_games=0,
+    eval_every=0,
+    log_path='runs/training.jsonl',
+    resume=True,
+    checkpoint_path=None,
+):
     if seed is not None:
         seed_everything(seed)
 
-    agent = Agent(resume=resume)
+    agent = Agent(checkpoint_path=checkpoint_path, resume=resume)
     game = SnakeGameAI(render=render, rng=random)
     logger = JsonlLogger(
         log_path,
@@ -541,6 +550,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=None, help='seed Python, NumPy, PyTorch, and game randomness')
     parser.add_argument('--eval-games', type=int, default=0, help='run this many greedy evaluation games')
     parser.add_argument('--eval-every', type=int, default=0, help='evaluate every N completed training games')
+    parser.add_argument('--checkpoint', default='model/checkpoint.pth', help='checkpoint path for this training worker')
     parser.add_argument('--log-file', default='runs/training.jsonl', help='JSONL experiment log path; use an empty value to disable')
     args = parser.parse_args()
     train(
@@ -551,4 +561,5 @@ if __name__ == '__main__':
         eval_every=args.eval_every,
         log_path=args.log_file or None,
         resume=not args.fresh,
+        checkpoint_path=args.checkpoint,
     )

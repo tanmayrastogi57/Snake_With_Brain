@@ -70,6 +70,23 @@ class CheckpointRegressionTests(unittest.TestCase):
 
             self.assertEqual(fresh.n_games, 0)
 
+    def test_custom_checkpoint_path_is_isolated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first_path = os.path.join(directory, 'worker-1.pth')
+            second_path = os.path.join(directory, 'worker-2.pth')
+            first = Agent(checkpoint_path=first_path, resume=False)
+            first.n_games = 11
+            first.save_checkpoint()
+            second = Agent(checkpoint_path=second_path, resume=False)
+            second.n_games = 22
+            second.save_checkpoint()
+
+            first_resumed = Agent(checkpoint_path=first_path)
+            second_resumed = Agent(checkpoint_path=second_path)
+
+            self.assertEqual(first_resumed.n_games, 11)
+            self.assertEqual(second_resumed.n_games, 22)
+
     def test_replay_training_waits_for_a_full_starting_batch(self):
         with tempfile.TemporaryDirectory() as directory:
             agent = Agent(checkpoint_path=os.path.join(directory, "missing.pth"))

@@ -45,6 +45,7 @@ Useful options:
 | --- | --- |
 | `--headless` | Disable PyGame rendering and frame-rate waits. |
 | `--fresh` | Ignore the saved checkpoint and start from game 0. |
+| `--checkpoint PATH` | Use a separate checkpoint for this training process. Required for parallel workers. |
 | `--max-games N` | Stop after `N` completed games. |
 | `--seed N` | Seed Python, NumPy, PyTorch, and game randomness. |
 | `--eval-games N` | Run `N` greedy evaluation games during training. |
@@ -60,6 +61,10 @@ Example experiment command:
 The existing `model/checkpoint.pth` is loaded automatically when present.
 Training saves the current model, target model, optimizer, replay buffer,
 progress counters, and checkpoint metadata after each completed game.
+
+Multiple independent workers can be run safely when each has a unique
+`--checkpoint` and `--log-file`. Their experience is not merged automatically;
+select the best checkpoint afterward or use them as separate experiments.
 
 ## Architecture and learning schedule
 
