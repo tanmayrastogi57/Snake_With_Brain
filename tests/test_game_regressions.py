@@ -1,4 +1,5 @@
 import os
+import random
 import unittest
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -47,6 +48,12 @@ class CollisionRegressionTests(unittest.TestCase):
         self.assertIsNone(game.display)
         self.assertIsNone(game.clock)
         self.assertEqual((reward, done, score), (0, False, 0))
+
+    def test_seeded_game_rng_reproduces_food_placement(self):
+        first = SnakeGameAI(w=80, h=80, render=False, rng=random.Random(7))
+        second = SnakeGameAI(w=80, h=80, render=False, rng=random.Random(7))
+
+        self.assertEqual(first.food, second.food)
 
 
 if __name__ == "__main__":

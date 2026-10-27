@@ -32,11 +32,12 @@ SPEED = 40
 
 class SnakeGameAI:
 
-    def __init__(self, w=640, h=480, render=True, speed=SPEED):
+    def __init__(self, w=640, h=480, render=True, speed=SPEED, rng=None):
         self.w = w
         self.h = h
         self.render = render
         self.speed = speed
+        self.rng = rng or random
         self.display = None
         self.clock = None
         if self.render:
@@ -66,7 +67,7 @@ class SnakeGameAI:
             for y in range(0, self.h, BLOCK_SIZE)
             if Point(x, y) not in self.snake
         ]
-        self.food = random.choice(available) if available else None
+        self.food = self.rng.choice(available) if available else None
         return bool(available)
 
     def play_step(self, action):

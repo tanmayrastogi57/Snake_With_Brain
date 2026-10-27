@@ -6,7 +6,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import torch
 
-from agent import Agent, EPSILON_END, EPSILON_START
+from agent import Agent, EPSILON_END, EPSILON_START, evaluate, seed_everything
 
 
 class CheckpointRegressionTests(unittest.TestCase):
@@ -65,6 +65,28 @@ class CheckpointRegressionTests(unittest.TestCase):
 
             self.assertFalse(agent.train_from_replay())
             self.assertFalse(hasattr(agent, "train_short_memory"))
+
+    def test_seeded_agent_initialization_is_reproducible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            seed_everything(42)
+            first = Agent(checkpoint_path=os.path.join(directory, "missing-1.pth"))
+            seed_everything(42)
+            second = Agent(checkpoint_path=os.path.join(directory, "missing-2.pth"))
+
+            for first_parameter, second_parameter in zip(first.model.parameters(), second.model.parameters()):
+                self.assertTrue(torch.equal(first_parameter, second_parameter))
+
+    def test_evaluation_is_independent_of_training_counters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            agent = Agent(checkpoint_path=os.path.join(directory, "missing.pth"))
+            agent.n_games = 17
+            before_epsilon = agent.epsilon
+
+            result = evaluate(agent, games=1, seed=9, render=False)
+
+            self.assertEqual(result['games'], 1)
+            self.assertEqual(agent.n_games, 17)
+            self.assertEqual(agent.epsilon, before_epsilon)
 
 
 if __name__ == "__main__":

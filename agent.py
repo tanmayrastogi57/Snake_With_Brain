@@ -2,6 +2,7 @@ import os
 import random
 import argparse
 import math
+from statistics import mean
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -394,9 +395,62 @@ class Agent:
         return final_move
 
 
-def train(render=True, max_games=None):
+def seed_everything(seed):
+    """Seed all training RNGs used by the project."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def evaluate(agent, games=10, seed=None, render=False):
+    """Evaluate a greedy policy in independent environments."""
+    if games <= 0:
+        return {'games': 0, 'scores': [], 'mean_score': 0.0, 'max_score': 0}
+
+    random_state = random.getstate()
+    numpy_state = np.random.get_state()
+    torch_state = torch.get_rng_state()
+    previous_training = agent.model.training
+    previous_epsilon = agent.epsilon
+    scores = []
+    agent.model.eval()
+
+    try:
+        with torch.no_grad():
+            for game_index in range(games):
+                game_seed = None if seed is None else seed + game_index
+                game = SnakeGameAI(render=render, rng=random.Random(game_seed))
+                try:
+                    done = False
+                    while not done:
+                        state = agent.get_state(game)
+                        _, done, score = game.play_step(agent.get_action(state, explore=False))
+                    scores.append(score)
+                finally:
+                    game.close()
+    finally:
+        random.setstate(random_state)
+        np.random.set_state(numpy_state)
+        torch.set_rng_state(torch_state)
+        agent.epsilon = previous_epsilon
+        agent.model.train(previous_training)
+
+    return {
+        'games': len(scores),
+        'scores': scores,
+        'mean_score': mean(scores),
+        'max_score': max(scores),
+    }
+
+
+def train(render=True, max_games=None, seed=None, eval_games=0, eval_every=0):
+    if seed is not None:
+        seed_everything(seed)
+
     agent = Agent()
-    game = SnakeGameAI(render=render)
+    game = SnakeGameAI(render=render, rng=random)
     plot_scores = agent.plot_scores
     plot_mean_scores = agent.plot_mean_scores
     total_score = agent.total_score
@@ -443,6 +497,13 @@ def train(render=True, max_games=None):
             agent.total_score = total_score
             agent.save_checkpoint()
 
+            if eval_games and (eval_every == 0 or agent.n_games % eval_every == 0):
+                evaluation = evaluate(agent, games=eval_games, seed=seed, render=False)
+                print(
+                    f"Evaluation after game {agent.n_games}: "
+                    f"mean={evaluation['mean_score']:.2f} max={evaluation['max_score']}"
+                )
+
             if max_games is not None and agent.n_games >= max_games:
                 game.close()
                 return
@@ -452,5 +513,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train the Snake DQN agent.')
     parser.add_argument('--headless', action='store_true', help='disable Pygame rendering and frame-rate waits')
     parser.add_argument('--max-games', type=int, default=None, help='stop after this many completed games')
+    parser.add_argument('--seed', type=int, default=None, help='seed Python, NumPy, PyTorch, and game randomness')
+    parser.add_argument('--eval-games', type=int, default=0, help='run this many greedy evaluation games')
+    parser.add_argument('--eval-every', type=int, default=0, help='evaluate every N completed training games')
     args = parser.parse_args()
-    train(render=not args.headless, max_games=args.max_games)
+    train(
+        render=not args.headless,
+        max_games=args.max_games,
+        seed=args.seed,
+        eval_games=args.eval_games,
+        eval_every=args.eval_every,
+    )
