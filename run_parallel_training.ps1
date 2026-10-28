@@ -15,6 +15,8 @@ param(
 
     [switch]$Render,
 
+    [switch]$ShowGraph,
+
     [string]$RunDirectory = 'runs\shared',
 
     [string]$PlotFile = '',
@@ -69,6 +71,11 @@ if ($EvalGames -gt 0) {
     if ($EvalEvery -gt 0) {
         $arguments += '--eval-every', $EvalEvery
     }
+}
+
+if ($Render -or $ShowGraph) {
+    $monitorArguments = 'plot_monitor.py --log-file "{0}" --output "{1}"' -f $logPath, $plotPath
+    Start-Process -FilePath $pythonPath -WorkingDirectory $repoRoot -ArgumentList $monitorArguments | Out-Null
 }
 
 Write-Output "Starting one shared learner with $Workers environment workers"
