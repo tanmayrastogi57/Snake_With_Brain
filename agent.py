@@ -588,7 +588,8 @@ def train(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train the Snake DQN agent.')
     parser.add_argument('--headless', action='store_true', help='disable Pygame rendering and frame-rate waits')
-    parser.add_argument('--workers', type=int, default=1, help='number of headless environments feeding one shared learner')
+    parser.add_argument('--workers', type=int, default=1, help='number of environments feeding one shared learner')
+    parser.add_argument('--render-workers', action='store_true', help='show one Pygame window per shared environment worker')
     parser.add_argument('--device', choices=('auto', 'cpu', 'cuda'), default='auto', help='learner device')
     parser.add_argument('--policy-sync-every', type=int, default=250, help='learner updates between worker policy broadcasts')
     parser.add_argument('--fresh', action='store_true', help='ignore the saved checkpoint and start counters and weights from scratch')
@@ -613,6 +614,7 @@ if __name__ == '__main__':
             checkpoint_path=args.checkpoint,
             device=args.device,
             policy_sync_every=args.policy_sync_every,
+            render_workers=args.render_workers,
         )
     else:
         train(

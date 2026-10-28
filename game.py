@@ -32,17 +32,18 @@ SPEED = 40
 
 class SnakeGameAI:
 
-    def __init__(self, w=640, h=480, render=True, speed=SPEED, rng=None):
+    def __init__(self, w=640, h=480, render=True, speed=SPEED, rng=None, window_title='Snake'):
         self.w = w
         self.h = h
         self.render = render
         self.speed = speed
+        self.window_title = window_title
         self.rng = rng or random
         self.display = None
         self.clock = None
         if self.render:
             self.display = pygame.display.set_mode((self.w, self.h))
-            pygame.display.set_caption('Snake')
+            pygame.display.set_caption(self.window_title)
             self.clock = pygame.time.Clock()
         self.reset()
 

@@ -48,7 +48,7 @@ def _drain_policy_updates(worker_agent, policy_queue):
         _apply_policy(worker_agent, latest)
 
 
-def _environment_worker(worker_id, transition_queue, policy_queue, stop_event, seed):
+def _environment_worker(worker_id, transition_queue, policy_queue, stop_event, seed, render):
     """Generate experience on CPU; the learner owns the shared model."""
     try:
         torch.set_num_threads(1)
@@ -56,7 +56,11 @@ def _environment_worker(worker_id, transition_queue, policy_queue, stop_event, s
         worker_agent = Agent(resume=False, device='cpu')
         initial_policy = policy_queue.get()
         _apply_policy(worker_agent, initial_policy)
-        game = SnakeGameAI(render=False, rng=random.Random(seed))
+        game = SnakeGameAI(
+            render=render,
+            rng=random.Random(seed),
+            window_title=f'Snake Worker {worker_id}',
+        )
 
         try:
             while not stop_event.is_set():
@@ -117,8 +121,9 @@ def train_parallel(
     checkpoint_path='model/checkpoint.pth',
     device='auto',
     policy_sync_every=DEFAULT_POLICY_SYNC_EVERY,
+    render_workers=False,
 ):
-    """Train one shared policy from N parallel headless environments."""
+    """Train one shared policy from N parallel environments."""
     if workers < 2:
         raise ValueError('train_parallel requires at least 2 workers')
     if policy_sync_every < 1:
@@ -132,7 +137,7 @@ def train_parallel(
         log_path,
         context={
             'seed': seed,
-            'render': False,
+            'render': render_workers,
             'resume': resume,
             'workers': workers,
             'device': str(agent.device),
@@ -161,7 +166,7 @@ def train_parallel(
         worker_seed = (seed if seed is not None else random.randrange(2**31)) + worker_id
         process = context.Process(
             target=_environment_worker,
-            args=(worker_id, transition_queue, policy_queue, stop_event, worker_seed),
+            args=(worker_id, transition_queue, policy_queue, stop_event, worker_seed, render_workers),
             name=f'snake-worker-{worker_id}',
         )
         process.start()

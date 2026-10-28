@@ -13,6 +13,8 @@ param(
 
     [switch]$Resume,
 
+    [switch]$Render,
+
     [string]$RunDirectory = 'runs\shared'
 )
 
@@ -36,12 +38,16 @@ $arguments = @(
     '--max-games', $Games,
     '--seed', $Seed,
     '--device', $Device,
-    '--checkpoint', "`"$checkpointPath`"",
-    '--log-file', "`"$logPath`""
+    '--checkpoint', $checkpointPath,
+    '--log-file', $logPath
 )
 
 if (-not $Resume) {
     $arguments += '--fresh'
+}
+
+if ($Render) {
+    $arguments += '--render-workers'
 }
 
 Write-Output "Starting one shared learner with $Workers environment workers"
