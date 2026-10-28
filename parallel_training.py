@@ -228,16 +228,18 @@ def train_parallel(
                     'episode',
                     **episode_record,
                 )
-                if plot_path and agent.n_games % plot_every == 0:
-                    plot_training_history(history, plot_path)
 
                 if eval_games and (eval_every == 0 or agent.n_games % eval_every == 0):
                     evaluation = evaluate(agent, games=eval_games, seed=seed, render=False)
                     logger.log('evaluation', game=agent.n_games, **evaluation)
+                    history.append({'event': 'evaluation', 'game': agent.n_games, **evaluation})
                     print(
                         f"Evaluation after game {agent.n_games}: "
                         f"mean={evaluation['mean_score']:.2f} max={evaluation['max_score']}"
                     )
+
+                if plot_path and agent.n_games % plot_every == 0:
+                    plot_training_history(history, plot_path)
 
                 if target_games is not None and agent.n_games >= target_games:
                     break

@@ -20,7 +20,13 @@ param(
     [string]$PlotFile = '',
 
     [ValidateRange(1, 1000000)]
-    [int]$PlotEvery = 10
+    [int]$PlotEvery = 10,
+
+    [ValidateRange(0, 1000000)]
+    [int]$EvalGames = 0,
+
+    [ValidateRange(0, 1000000)]
+    [int]$EvalEvery = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +62,13 @@ if (-not $Resume) {
 
 if ($Render) {
     $arguments += '--render-workers'
+}
+
+if ($EvalGames -gt 0) {
+    $arguments += '--eval-games', $EvalGames
+    if ($EvalEvery -gt 0) {
+        $arguments += '--eval-every', $EvalEvery
+    }
 }
 
 Write-Output "Starting one shared learner with $Workers environment workers"

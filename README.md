@@ -40,6 +40,7 @@ Run these commands from the repository directory:
 | `.\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device auto -Resume` | Resumes the shared checkpoint created by the launcher. |
 | `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -Device auto -Render` | Shows one Pygame window per worker while they feed the same shared learner. |
 | `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -PlotEvery 10` | Refreshes the shared analysis graph every 10 completed games. |
+| `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -EvalGames 10 -EvalEvery 50` | Adds 10 greedy evaluation games every 50 training games to the graph and JSONL log. |
 | `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -Seed 2000 -RunDirectory runs\experiment-a` | Runs a shared experiment with custom worker seed base and output directory. |
 | `.\.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"` | Checks whether the installed PyTorch build can see CUDA. |
 | `$env:SDL_VIDEODRIVER = 'dummy'; .\.venv\Scripts\python.exe -m unittest discover -s tests -v` | Runs the regression test suite without opening a display. |
