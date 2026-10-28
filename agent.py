@@ -590,6 +590,8 @@ if __name__ == '__main__':
     parser.add_argument('--headless', action='store_true', help='disable Pygame rendering and frame-rate waits')
     parser.add_argument('--workers', type=int, default=1, help='number of environments feeding one shared learner')
     parser.add_argument('--render-workers', action='store_true', help='show one Pygame window per shared environment worker')
+    parser.add_argument('--plot-file', default='runs/shared/shared-training.png', help='analysis PNG path for shared training')
+    parser.add_argument('--plot-every', type=int, default=10, help='refresh the shared-training graph every N games')
     parser.add_argument('--device', choices=('auto', 'cpu', 'cuda'), default='auto', help='learner device')
     parser.add_argument('--policy-sync-every', type=int, default=250, help='learner updates between worker policy broadcasts')
     parser.add_argument('--fresh', action='store_true', help='ignore the saved checkpoint and start counters and weights from scratch')
@@ -615,6 +617,8 @@ if __name__ == '__main__':
             device=args.device,
             policy_sync_every=args.policy_sync_every,
             render_workers=args.render_workers,
+            plot_path=args.plot_file or None,
+            plot_every=args.plot_every,
         )
     else:
         train(

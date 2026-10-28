@@ -15,7 +15,12 @@ param(
 
     [switch]$Render,
 
-    [string]$RunDirectory = 'runs\shared'
+    [string]$RunDirectory = 'runs\shared',
+
+    [string]$PlotFile = '',
+
+    [ValidateRange(1, 1000000)]
+    [int]$PlotEvery = 10
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +29,7 @@ $pythonPath = Join-Path $repoRoot '.venv\Scripts\python.exe'
 $runPath = Join-Path $repoRoot $RunDirectory
 $checkpointPath = Join-Path $runPath 'shared-checkpoint.pth'
 $logPath = Join-Path $runPath 'shared-training.jsonl'
+$plotPath = if ($PlotFile) { $PlotFile } else { Join-Path $runPath 'shared-training.png' }
 
 if (-not (Test-Path -LiteralPath $pythonPath)) {
     throw "Python virtual environment not found at $pythonPath"
@@ -39,7 +45,9 @@ $arguments = @(
     '--seed', $Seed,
     '--device', $Device,
     '--checkpoint', $checkpointPath,
-    '--log-file', $logPath
+    '--log-file', $logPath,
+    '--plot-file', $plotPath,
+    '--plot-every', $PlotEvery
 )
 
 if (-not $Resume) {
@@ -54,6 +62,7 @@ Write-Output "Starting one shared learner with $Workers environment workers"
 Write-Output "Device:     $Device"
 Write-Output "Checkpoint: $checkpointPath"
 Write-Output "Log:        $logPath"
+Write-Output "Graph:      $plotPath"
 
 & $pythonPath @arguments
 exit $LASTEXITCODE

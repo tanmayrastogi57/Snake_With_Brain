@@ -16,6 +16,7 @@ from agent import (
 )
 from experiment import JsonlLogger
 from game import SnakeGameAI
+from helper import plot_training_history
 
 
 DEFAULT_POLICY_SYNC_EVERY = 250
@@ -122,12 +123,16 @@ def train_parallel(
     device='auto',
     policy_sync_every=DEFAULT_POLICY_SYNC_EVERY,
     render_workers=False,
+    plot_path='runs/shared/shared-training.png',
+    plot_every=10,
 ):
     """Train one shared policy from N parallel environments."""
     if workers < 2:
         raise ValueError('train_parallel requires at least 2 workers')
     if policy_sync_every < 1:
         raise ValueError('policy_sync_every must be positive')
+    if plot_every < 1:
+        raise ValueError('plot_every must be positive')
 
     if seed is not None:
         seed_everything(seed)
@@ -160,6 +165,7 @@ def train_parallel(
     start_games = agent.n_games
     target_games = None if max_games is None else start_games + max_games
     update_count = 0
+    history = []
 
     _publish_policy(policy_queues, agent)
     for worker_id, policy_queue in enumerate(policy_queues):
@@ -206,18 +212,24 @@ def train_parallel(
                     f'Score {score} | Record {agent.record} | '
                     f'Replay {len(agent.memory)} | Device {agent.device}'
                 )
+                episode_record = {
+                    'worker': worker_id,
+                    'game': agent.n_games,
+                    'score': score,
+                    'record': agent.record,
+                    'mean_score': mean_score,
+                    'epsilon': Agent.epsilon_for_game(agent.n_games),
+                    'frame_count': agent.frame_count,
+                    'replay_size': len(agent.memory),
+                    'learner_updates': update_count,
+                }
+                history.append({'event': 'episode', **episode_record})
                 logger.log(
                     'episode',
-                    worker=worker_id,
-                    game=agent.n_games,
-                    score=score,
-                    record=agent.record,
-                    mean_score=mean_score,
-                    epsilon=Agent.epsilon_for_game(agent.n_games),
-                    frame_count=agent.frame_count,
-                    replay_size=len(agent.memory),
-                    learner_updates=update_count,
+                    **episode_record,
                 )
+                if plot_path and agent.n_games % plot_every == 0:
+                    plot_training_history(history, plot_path)
 
                 if eval_games and (eval_every == 0 or agent.n_games % eval_every == 0):
                     evaluation = evaluate(agent, games=eval_games, seed=seed, render=False)
@@ -240,6 +252,8 @@ def train_parallel(
                 process.terminate()
                 process.join(timeout=5)
         agent.save_checkpoint()
+        if plot_path:
+            plot_training_history(history, plot_path)
         logger.log(
             'run_finished',
             reason='completed' if target_games is not None and agent.n_games >= target_games else 'stopped',

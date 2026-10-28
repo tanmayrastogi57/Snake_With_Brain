@@ -7,7 +7,7 @@ from pathlib import Path
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 from experiment import JsonlLogger
-from helper import plot
+from helper import plot, plot_training_history
 
 
 class ExperimentLoggingTests(unittest.TestCase):
@@ -31,6 +31,37 @@ class ExperimentLoggingTests(unittest.TestCase):
 
             plot([1, 2], [1, 1.5], output_path)
 
+            self.assertTrue(output_path.exists())
+            self.assertGreater(output_path.stat().st_size, 0)
+
+    def test_training_analysis_plot_uses_episode_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = Path(directory) / 'analysis.png'
+            records = [
+                {
+                    'event': 'episode',
+                    'game': 1,
+                    'score': 0,
+                    'record': 0,
+                    'mean_score': 0.0,
+                    'epsilon': 1.0,
+                    'replay_size': 100,
+                    'learner_updates': 0,
+                },
+                {
+                    'event': 'episode',
+                    'game': 2,
+                    'score': 1,
+                    'record': 1,
+                    'mean_score': 0.5,
+                    'epsilon': 0.99,
+                    'replay_size': 200,
+                    'learner_updates': 25,
+                },
+                {'event': 'evaluation', 'game': 2, 'mean_score': 1.0, 'max_score': 2},
+            ]
+
+            self.assertTrue(plot_training_history(records, output_path))
             self.assertTrue(output_path.exists())
             self.assertGreater(output_path.stat().st_size, 0)
 

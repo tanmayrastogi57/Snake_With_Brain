@@ -34,10 +34,12 @@ Run these commands from the repository directory:
 | `.\.venv\Scripts\python.exe agent.py --workers 10 --headless --device cuda --checkpoint runs\shared\checkpoint.pth --log-file runs\shared\training.jsonl` | Runs configurable shared-experience training with the learner on CUDA. |
 | `.\.venv\Scripts\python.exe agent.py --workers 10 --headless --policy-sync-every 100` | Shares one learner while broadcasting updated policy weights every 100 learner updates. |
 | `.\.venv\Scripts\python.exe agent.py --workers 4 --render-workers --max-games 1000` | Opens one visible Pygame window per worker while using one shared learner. |
+| `.\.venv\Scripts\python.exe plot_training.py --log-file runs\shared\shared-training.jsonl --output runs\shared\shared-training.png` | Generates an analysis graph from a completed or currently running JSONL log. |
 | `.\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device auto` | Starts the shared learner with 10 configurable environment workers. |
 | `.\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device cuda` | Starts shared training with the learner on CUDA. |
 | `.\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device auto -Resume` | Resumes the shared checkpoint created by the launcher. |
 | `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -Device auto -Render` | Shows one Pygame window per worker while they feed the same shared learner. |
+| `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -PlotEvery 10` | Refreshes the shared analysis graph every 10 completed games. |
 | `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -Seed 2000 -RunDirectory runs\experiment-a` | Runs a shared experiment with custom worker seed base and output directory. |
 | `.\.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"` | Checks whether the installed PyTorch build can see CUDA. |
 | `$env:SDL_VIDEODRIVER = 'dummy'; .\.venv\Scripts\python.exe -m unittest discover -s tests -v` | Runs the regression test suite without opening a display. |
@@ -47,7 +49,8 @@ Run these commands from the repository directory:
 `--workers N` means N environments contribute transitions to one shared
 learner. It does not create N separate models. The PowerShell launcher uses
 `runs\shared\shared-checkpoint.pth` and
-`runs\shared\shared-training.jsonl` by default.
+`runs\shared\shared-training.jsonl` by default. It also refreshes
+`runs\shared\shared-training.png` every 10 completed games.
 
 ## Run training
 
@@ -159,6 +162,14 @@ Training writes one JSON object per line. Records include `run_started`,
 `episode`, `evaluation`, and `run_finished` events with timestamps, seed,
 episode score, running mean, record, epsilon, frame count, replay size, and
 evaluation scores. Generated `runs/` files are ignored by Git.
+
+The shared trainer continuously writes an analysis graph with score/mean score,
+record, epsilon, replay size, learner updates, and evaluation metrics. To
+regenerate it after a run:
+
+```powershell
+.\.venv\Scripts\python.exe plot_training.py --log-file runs\shared\shared-training.jsonl --output runs\shared\shared-training.png
+```
 
 ## Tests
 
