@@ -3,7 +3,7 @@ param(
     [ValidateRange(2, 32)]
     [int]$Workers = 4,
 
-    [ValidateRange(1, 1000000)]
+    [ValidateRange(0, 1000000)]
     [int]$Games = 1000,
 
     [int]$Seed = 1000,
@@ -49,7 +49,6 @@ $arguments = @(
     'agent.py',
     '--workers', $Workers,
     '--headless',
-    '--max-games', $Games,
     '--seed', $Seed,
     '--device', $Device,
     '--checkpoint', $checkpointPath,
@@ -57,6 +56,10 @@ $arguments = @(
     '--plot-file', $plotPath,
     '--plot-every', $PlotEvery
 )
+
+if ($Games -gt 0) {
+    $arguments += '--max-games', $Games
+}
 
 if (-not $Resume) {
     $arguments += '--fresh'
@@ -75,11 +78,13 @@ if ($EvalGames -gt 0) {
 
 if ($Render -or $ShowGraph) {
     $monitorArguments = 'plot_monitor.py --log-file "{0}" --output "{1}"' -f $logPath, $plotPath
-    Start-Process -FilePath $pythonPath -WorkingDirectory $repoRoot -ArgumentList $monitorArguments | Out-Null
+    Start-Process -FilePath $pythonPath -WorkingDirectory $repoRoot -ArgumentList $monitorArguments -WindowStyle Normal | Out-Null
+    Write-Output "Live graph: launched automatically"
 }
 
 Write-Output "Starting one shared learner with $Workers environment workers"
 Write-Output "Device:     $Device"
+Write-Output "Games:      $(if ($Games -gt 0) { $Games } else { 'unlimited' })"
 Write-Output "Checkpoint: $checkpointPath"
 Write-Output "Log:        $logPath"
 Write-Output "Graph:      $plotPath"

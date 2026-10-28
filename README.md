@@ -37,6 +37,7 @@ Run these commands from the repository directory:
 | `.\.venv\Scripts\python.exe plot_training.py --log-file runs\shared\shared-training.jsonl --output runs\shared\shared-training.png` | Generates an analysis graph from a completed or currently running JSONL log. |
 | `.\.venv\Scripts\python.exe plot_monitor.py --log-file runs\shared\shared-training.jsonl` | Opens a live graph window that refreshes while training writes the log. |
 | `.\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device auto` | Starts the shared learner with 10 configurable environment workers. |
+| `.\run_parallel_training.ps1 -Workers 4 -Games 0 -Device auto -Render` | Runs indefinitely until manually stopped, with visible workers and an automatically opened graph. |
 | `.\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device cuda` | Starts shared training with the learner on CUDA. |
 | `.\run_parallel_training.ps1 -Workers 10 -Games 10000 -Device auto -Resume` | Resumes the shared checkpoint created by the launcher. |
 | `.\run_parallel_training.ps1 -Workers 4 -Games 1000 -Device auto -Render` | Shows worker windows and automatically opens the live analysis graph. |
@@ -53,6 +54,9 @@ learner. It does not create N separate models. The PowerShell launcher uses
 `runs\shared\shared-checkpoint.pth` and
 `runs\shared\shared-training.jsonl` by default. It also refreshes
 `runs\shared\shared-training.png` every 10 completed games.
+
+`-Games 1000` stops normally after 1,000 completed games. Use `-Games 0` for
+an unlimited run that continues until you press `Ctrl+C`.
 
 ## Run training
 
